@@ -1,0 +1,736 @@
+{
+  "table": "fact_loan",
+  "measures": [
+    {
+      "name": "Latest Snapshot Date",
+      "expression": "CALCULATE ( MAX ( fact_dpd_snapshot[SnapshotDate] ), ALL ( fact_dpd_snapshot ) )",
+      "description": "Most recent snapshot date present in the DPD snapshot table."
+    },
+    {
+      "name": "Latest Reporting Date",
+      "expression": "CALCULATE ( MAX ( fact_loss_monthly[ReportingDate] ), ALL ( fact_loss_monthly ) )",
+      "description": "Most recent reporting date present in the monthly loss table."
+    },
+    {
+      "name": "Selected Period Label",
+      "expression": "VAR _d = SELECTEDVALUE ( dim_calendar[Date], [Latest Reporting Date] )\nRETURN FORMAT ( _d, \"MMM-YYYY\" )",
+      "description": "Human-readable label for the currently selected period."
+    },
+    {
+      "name": "Loan Count",
+      "expression": "DISTINCTCOUNT ( fact_loan[LoanID] )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Borrower Count",
+      "expression": "DISTINCTCOUNT ( fact_loan[BorrowerID] )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Original Pool Balance",
+      "expression": "SUM ( fact_loan[OriginalLoanAmount] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Current Pool Balance",
+      "expression": "SUM ( fact_loan[CurrentBalance] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Total EAD",
+      "expression": "SUM ( fact_loan[EAD] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Pool Factor",
+      "expression": "DIVIDE ( [Current Pool Balance], [Original Pool Balance] )",
+      "formatString": "0.0000",
+      "description": "Current outstanding \u00f7 original \u2014 pool amortisation indicator."
+    },
+    {
+      "name": "Avg Loan Size",
+      "expression": "DIVIDE ( [Current Pool Balance], [Loan Count] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Avg Original Term Months",
+      "expression": "AVERAGE ( fact_loan[OriginalTerm] )",
+      "formatString": "0.0\" m\""
+    },
+    {
+      "name": "Avg Months on Book",
+      "expression": "AVERAGE ( fact_loan[MonthsOnBook] )",
+      "formatString": "0.0\" m\""
+    },
+    {
+      "name": "Pool Balance at Snapshot",
+      "expression": "CALCULATE (\n    SUM ( fact_dpd_snapshot[CurrentBalance] ),\n    fact_dpd_snapshot[SnapshotDate] = [Latest Snapshot Date]\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Sum of current balance across loans at the latest snapshot."
+    },
+    {
+      "name": "WAC %",
+      "expression": "DIVIDE (\n    SUMX ( fact_loan, fact_loan[InterestRate] * fact_loan[CurrentBalance] ),\n    SUMX ( fact_loan, fact_loan[CurrentBalance] )\n)",
+      "formatString": "0.00%",
+      "description": "Weighted average coupon (balance-weighted)."
+    },
+    {
+      "name": "WAM Months",
+      "expression": "DIVIDE (\n    SUMX ( fact_loan, fact_loan[RemainingTerm] * fact_loan[CurrentBalance] ),\n    SUMX ( fact_loan, fact_loan[CurrentBalance] )\n)",
+      "formatString": "0.0\" m\"",
+      "description": "Weighted average remaining maturity (months)."
+    },
+    {
+      "name": "WALA Months",
+      "expression": "DIVIDE (\n    SUMX ( fact_loan, fact_loan[MonthsOnBook] * fact_loan[CurrentBalance] ),\n    SUMX ( fact_loan, fact_loan[CurrentBalance] )\n)",
+      "formatString": "0.0\" m\"",
+      "description": "Weighted average loan age (months on book)."
+    },
+    {
+      "name": "Weighted Avg LTV %",
+      "expression": "DIVIDE (\n    SUMX ( fact_loan, fact_loan[LTV_Current] * fact_loan[CurrentBalance] ),\n    SUMX ( fact_loan, fact_loan[CurrentBalance] )\n)",
+      "formatString": "0.00%",
+      "description": "Balance-weighted current LTV ratio."
+    },
+    {
+      "name": "Weighted Avg DTI %",
+      "expression": "DIVIDE (\n    SUMX ( fact_loan, fact_loan[DTI_Ratio] * fact_loan[CurrentBalance] ),\n    SUMX ( fact_loan, fact_loan[CurrentBalance] )\n)",
+      "formatString": "0.00%",
+      "description": "Balance-weighted debt-to-income."
+    },
+    {
+      "name": "Weighted Avg CIBIL",
+      "expression": "DIVIDE (\n    SUMX ( fact_loan, fact_loan[CIBIL_Score_Current] * fact_loan[CurrentBalance] ),\n    SUMX ( fact_loan, fact_loan[CurrentBalance] )\n)",
+      "formatString": "0",
+      "description": "Balance-weighted CIBIL score."
+    },
+    {
+      "name": "Portfolio Yield %",
+      "expression": "[WAC %]",
+      "formatString": "0.00%",
+      "description": "Gross asset yield (alias for WAC); net yield deducts servicer + trustee fees."
+    },
+    {
+      "name": "Loans 30+ DPD Count",
+      "expression": "CALCULATE ( [Loan Count], fact_loan[DelinquencyDays] >= 30 )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Balance 30+ DPD",
+      "expression": "CALCULATE ( [Current Pool Balance], fact_loan[DelinquencyDays] >= 30 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "30+ DPD %",
+      "expression": "DIVIDE ( [Balance 30+ DPD], [Current Pool Balance] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Loans 60+ DPD Count",
+      "expression": "CALCULATE ( [Loan Count], fact_loan[DelinquencyDays] >= 60 )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Balance 60+ DPD",
+      "expression": "CALCULATE ( [Current Pool Balance], fact_loan[DelinquencyDays] >= 60 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "60+ DPD %",
+      "expression": "DIVIDE ( [Balance 60+ DPD], [Current Pool Balance] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Loans 90+ DPD Count",
+      "expression": "CALCULATE ( [Loan Count], fact_loan[DelinquencyDays] >= 90 )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Balance 90+ DPD",
+      "expression": "CALCULATE ( [Current Pool Balance], fact_loan[DelinquencyDays] >= 90 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "90+ DPD %",
+      "expression": "DIVIDE ( [Balance 90+ DPD], [Current Pool Balance] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Delinquency Rate %",
+      "expression": "DIVIDE ( [Loans 30+ DPD Count], [Loan Count] )",
+      "formatString": "0.00%",
+      "description": "Share of loans that are 30+ days past due (loan count basis)."
+    },
+    {
+      "name": "NPA Balance",
+      "expression": "CALCULATE (\n    SUM ( fact_dpd_snapshot[CurrentBalance] ),\n    fact_dpd_snapshot[SnapshotDate] = [Latest Snapshot Date],\n    fact_dpd_snapshot[RBI_SMA_Class] = \"NPA\"\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Non-performing balance per RBI classification at latest snapshot."
+    },
+    {
+      "name": "NPA %",
+      "expression": "DIVIDE ( [NPA Balance], [Pool Balance at Snapshot] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "GNPA Ratio %",
+      "expression": "[NPA %]",
+      "formatString": "0.00%",
+      "description": "Gross NPA ratio \u2014 alias of NPA % retained for regulatory cross-referencing."
+    },
+    {
+      "name": "Net NPA Balance",
+      "expression": "VAR _gnpa = [NPA Balance]\nVAR _provns =\n    CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 3 )\nRETURN MAX ( _gnpa - _provns, 0 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "NPA balance net of Stage-3 ECL provisions (floored at zero)."
+    },
+    {
+      "name": "Net NPA %",
+      "expression": "DIVIDE ( [Net NPA Balance], [Pool Balance at Snapshot] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Defaulted Loan Count",
+      "expression": "CALCULATE ( [Loan Count], fact_loan[IsDefaulted] = TRUE() )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Default Rate %",
+      "expression": "DIVIDE ( [Defaulted Loan Count], [Loan Count] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Total Gross Loss",
+      "expression": "SUM ( fact_loan[LossAmount] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Total Net Loss",
+      "expression": "SUM ( fact_loan[NetLoss] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Gross Loss Rate %",
+      "expression": "DIVIDE ( [Total Gross Loss], [Original Pool Balance] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Net Loss Rate %",
+      "expression": "DIVIDE ( [Total Net Loss], [Original Pool Balance] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Monthly Default Rate %",
+      "expression": "AVERAGE ( fact_loss_monthly[MonthlyDefaultRate] )",
+      "formatString": "0.000%"
+    },
+    {
+      "name": "CDR Annualised %",
+      "expression": "VAR _mdr = AVERAGE ( fact_loss_monthly[MonthlyDefaultRate] )\nRETURN 1 - POWER ( 1 - _mdr, 12 )",
+      "formatString": "0.00%",
+      "description": "Annualised constant default rate: 1 \u2212 (1 \u2212 MDR)^12."
+    },
+    {
+      "name": "Total Recovery",
+      "expression": "SUM ( fact_loan[RecoveryAmount] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Recovery Rate %",
+      "expression": "DIVIDE ( [Total Recovery], [Total Gross Loss] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Monthly Recovery",
+      "expression": "SUM ( fact_loss_monthly[Recoveries_ThisMonth] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Total Prepayment",
+      "expression": "SUM ( fact_loan[PrepaymentAmount] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Prepayment Rate %",
+      "expression": "DIVIDE ( [Total Prepayment], [Original Pool Balance] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "SMM Avg %",
+      "expression": "AVERAGE ( fact_loss_monthly[SMM] )",
+      "formatString": "0.000%",
+      "description": "Single Monthly Mortality \u2014 share of EOP balance prepaid per month."
+    },
+    {
+      "name": "CPR Annualised %",
+      "expression": "AVERAGE ( fact_loss_monthly[CPR_Annualised] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "CPR Calc %",
+      "expression": "VAR _smm = AVERAGE ( fact_loss_monthly[SMM] )\nRETURN 1 - POWER ( 1 - _smm, 12 )",
+      "formatString": "0.00%",
+      "description": "CPR derived from SMM as a cross-check on the reported CPR."
+    },
+    {
+      "name": "Stage 1 Loan Count",
+      "expression": "CALCULATE ( [Loan Count], fact_loan[IFRS9_Stage] = 1 )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Stage 1 Balance",
+      "expression": "CALCULATE ( [Current Pool Balance], fact_loan[IFRS9_Stage] = 1 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stage 1 EAD",
+      "expression": "CALCULATE ( [Total EAD], fact_loan[IFRS9_Stage] = 1 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stage 1 ECL",
+      "expression": "CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 1 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stage 2 Loan Count",
+      "expression": "CALCULATE ( [Loan Count], fact_loan[IFRS9_Stage] = 2 )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Stage 2 Balance",
+      "expression": "CALCULATE ( [Current Pool Balance], fact_loan[IFRS9_Stage] = 2 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stage 2 EAD",
+      "expression": "CALCULATE ( [Total EAD], fact_loan[IFRS9_Stage] = 2 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stage 2 ECL",
+      "expression": "CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 2 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stage 3 Loan Count",
+      "expression": "CALCULATE ( [Loan Count], fact_loan[IFRS9_Stage] = 3 )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Stage 3 Balance",
+      "expression": "CALCULATE ( [Current Pool Balance], fact_loan[IFRS9_Stage] = 3 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stage 3 EAD",
+      "expression": "CALCULATE ( [Total EAD], fact_loan[IFRS9_Stage] = 3 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stage 3 ECL",
+      "expression": "CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 3 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Total ECL",
+      "expression": "SUM ( fact_loan[ECL_Provision] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "ECL Coverage %",
+      "expression": "DIVIDE ( [Total ECL], [Total EAD] )",
+      "formatString": "0.00%",
+      "description": "Portfolio-level ECL \u00f7 EAD coverage."
+    },
+    {
+      "name": "Stage 3 Coverage %",
+      "expression": "DIVIDE ( [Stage 3 ECL], [Stage 3 EAD] )",
+      "formatString": "0.00%",
+      "description": "Stage-3 ECL as a share of Stage-3 EAD \u2014 impairment intensity."
+    },
+    {
+      "name": "Weighted Avg PD %",
+      "expression": "DIVIDE (\n    SUMX ( fact_loan, fact_loan[PD_Estimate] * fact_loan[EAD] ),\n    SUMX ( fact_loan, fact_loan[EAD] )\n)",
+      "formatString": "0.00%",
+      "description": "EAD-weighted probability of default."
+    },
+    {
+      "name": "Weighted Avg LGD %",
+      "expression": "DIVIDE (\n    SUMX ( fact_loan, fact_loan[LGD_Estimate] * fact_loan[EAD] ),\n    SUMX ( fact_loan, fact_loan[EAD] )\n)",
+      "formatString": "0.00%",
+      "description": "EAD-weighted loss given default."
+    },
+    {
+      "name": "ECL Calculated",
+      "expression": "SUMX (\n    fact_loan,\n    fact_loan[PD_Estimate] * fact_loan[LGD_Estimate] * fact_loan[EAD]\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Validation: live PD \u00d7 LGD \u00d7 EAD vs. stored ECL_Provision."
+    },
+    {
+      "name": "Stage Migration Net %",
+      "expression": "VAR _to_worse = CALCULATE ( [Loan Count], fact_loan[IFRS9_Stage] > 1 )\nRETURN DIVIDE ( _to_worse, [Loan Count] )",
+      "formatString": "0.00%",
+      "description": "Share of loans not in Stage 1."
+    },
+    {
+      "name": "12-Month ECL",
+      "expression": "CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 1 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "12-month ECL bucket per IFRS 9 \u00a75.5.5 (Stage 1)."
+    },
+    {
+      "name": "Lifetime ECL",
+      "expression": "CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] IN { 2, 3 } )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Lifetime ECL bucket per IFRS 9 \u00a75.5.3 (Stages 2 & 3)."
+    },
+    {
+      "name": "Selected Scenario",
+      "expression": "SELECTEDVALUE ( dim_scenario[ScenarioName], \"Baseline\" )"
+    },
+    {
+      "name": "Scenario PD Multiplier",
+      "expression": "SELECTEDVALUE ( dim_scenario[PD_Multiplier], 1.0 )",
+      "formatString": "0.00"
+    },
+    {
+      "name": "Scenario LGD Multiplier",
+      "expression": "SELECTEDVALUE ( dim_scenario[LGD_Multiplier], 1.0 )",
+      "formatString": "0.00"
+    },
+    {
+      "name": "Scenario Recovery Haircut %",
+      "expression": "SELECTEDVALUE ( dim_scenario[Recovery_Haircut_Pct], 0 )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Stressed ECL",
+      "expression": "VAR _pdm = [Scenario PD Multiplier]\nVAR _lgdm = [Scenario LGD Multiplier]\nVAR _haircut = [Scenario Recovery Haircut %]\nRETURN\n    SUMX (\n        fact_loan,\n        MIN ( fact_loan[PD_Estimate] * _pdm, 1 ) *\n        MIN ( fact_loan[LGD_Estimate] * _lgdm * ( 1 + _haircut ), 1 ) *\n        fact_loan[EAD]\n    )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Live-stressed ECL with PD & LGD caps at 100%."
+    },
+    {
+      "name": "ECL Increase from Stress",
+      "expression": "[Stressed ECL] - [Total ECL]",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "ECL Increase %",
+      "expression": "DIVIDE ( [ECL Increase from Stress], [Total ECL] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Stressed ECL by Stage",
+      "expression": "SUM ( fact_stress_results[ECL_Stressed_INR] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Stressed Loss to Senior Tranche",
+      "expression": "CALCULATE (\n    SUM ( fact_stress_results[ECL_Stressed_INR] ),\n    fact_stress_results[Stage] = \"TR-A\"\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Stressed loss absorbed by tranche TR-A (Senior)."
+    },
+    {
+      "name": "Stressed Loss to Mezz Tranche",
+      "expression": "CALCULATE (\n    SUM ( fact_stress_results[ECL_Stressed_INR] ),\n    fact_stress_results[Stage] = \"TR-B\"\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Stressed loss absorbed by tranche TR-B (Mezz)."
+    },
+    {
+      "name": "Stressed Loss to Equity Tranche",
+      "expression": "CALCULATE (\n    SUM ( fact_stress_results[ECL_Stressed_INR] ),\n    fact_stress_results[Stage] = \"TR-C\"\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Stressed loss absorbed by tranche TR-C (Equity)."
+    },
+    {
+      "name": "Tranche Original Balance",
+      "expression": "SUM ( dim_tranche[OriginalBalance_INR] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Tranche EOP Balance",
+      "expression": "CALCULATE (\n    SUM ( fact_tranche_cashflow[EOP_Balance] ),\n    fact_tranche_cashflow[ReportingDate] = [Latest Reporting Date]\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Tranche Paydown %",
+      "expression": "DIVIDE ( [Tranche Original Balance] - [Tranche EOP Balance], [Tranche Original Balance] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Cumulative Tranche Interest Paid",
+      "expression": "SUM ( fact_tranche_cashflow[InterestPaid] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Cumulative Tranche Principal Paid",
+      "expression": "SUM ( fact_tranche_cashflow[PrincipalPaid] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Cumulative Tranche Loss",
+      "expression": "SUM ( fact_tranche_cashflow[LossAllocated] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Credit Enhancement %",
+      "expression": "VAR _senior_bal =\n    CALCULATE ( [Tranche EOP Balance], dim_tranche[TrancheID] = \"TR-A\" )\nVAR _total_bal =\n    CALCULATE ( [Tranche EOP Balance], ALL ( dim_tranche ) )\nRETURN DIVIDE ( _total_bal - _senior_bal, _total_bal )",
+      "formatString": "0.00%",
+      "description": "Subordination remaining for the senior tranche."
+    },
+    {
+      "name": "Waterfall Amount",
+      "expression": "SUM ( fact_waterfall_distribution[Amount] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Total Collections",
+      "expression": "SUM ( fact_loss_monthly[CollectionsTotal] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Excess Spread",
+      "expression": "SUM ( fact_loss_monthly[ExcessSpread_Monthly] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Cumulative Excess Spread",
+      "expression": "CALCULATE (\n    [Excess Spread],\n    FILTER (\n        ALL ( fact_loss_monthly ),\n        fact_loss_monthly[ReportingDate] <= MAX ( fact_loss_monthly[ReportingDate] )\n    )\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Total Invested by Investors",
+      "expression": "SUM ( dim_investor[InvestedAmount_INR] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Investor Count",
+      "expression": "DISTINCTCOUNT ( dim_investor[InvestorID] )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Senior Investor Allocation",
+      "expression": "CALCULATE (\n    SUM ( dim_investor[InvestedAmount_INR] ),\n    dim_investor[TrancheID] = \"TR-A\"\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Mezz Investor Allocation",
+      "expression": "CALCULATE (\n    SUM ( dim_investor[InvestedAmount_INR] ),\n    dim_investor[TrancheID] = \"TR-B\"\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Equity Investor Allocation",
+      "expression": "CALCULATE (\n    SUM ( dim_investor[InvestedAmount_INR] ),\n    dim_investor[TrancheID] = \"TR-C\"\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "FPI Allocation",
+      "expression": "CALCULATE (\n    SUM ( dim_investor[InvestedAmount_INR] ),\n    dim_investor[InvestorType] = \"Foreign Portfolio Investor\"\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "FPI Allocation %",
+      "expression": "DIVIDE ( [FPI Allocation], [Total Invested by Investors] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Collection Efficiency %",
+      "expression": "DIVIDE (\n    SUM ( fact_loss_monthly[CollectionsTotal] ),\n    SUM ( fact_loss_monthly[BillingAmount] )\n)",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Avg Collection Efficiency %",
+      "expression": "AVERAGE ( fact_loss_monthly[CollectionEfficiency] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Avg Monthly Billing",
+      "expression": "AVERAGE ( fact_loss_monthly[BillingAmount] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Cure Count",
+      "expression": "CALCULATE ( COUNTROWS ( fact_dpd_snapshot ), fact_dpd_snapshot[CureFlag] = TRUE() )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Repossession Count",
+      "expression": "CALCULATE ( COUNTROWS ( fact_dpd_snapshot ), fact_dpd_snapshot[RepossessionFlag] = TRUE() )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Write-Off Count",
+      "expression": "CALCULATE ( COUNTROWS ( fact_dpd_snapshot ), fact_dpd_snapshot[WriteOffFlag] = TRUE() )",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Vintage Cumulative Net Loss %",
+      "expression": "AVERAGE ( fact_vintage[CumulativeNetLossRate] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Latest Vintage Net Loss %",
+      "expression": "VAR _maxMOB =\n    CALCULATE ( MAX ( fact_vintage[MonthsOnBook] ),\n                ALLEXCEPT ( fact_vintage, fact_vintage[VintageID] ) )\nRETURN\n    CALCULATE (\n        AVERAGE ( fact_vintage[CumulativeNetLossRate] ),\n        fact_vintage[MonthsOnBook] = _maxMOB\n    )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Vintage Pool Factor",
+      "expression": "AVERAGE ( fact_vintage[PoolFactor] )",
+      "formatString": "0.0000"
+    },
+    {
+      "name": "Vintage Marginal Loss Rate",
+      "expression": "AVERAGE ( fact_vintage[MarginalLossRate] )",
+      "formatString": "0.000%"
+    },
+    {
+      "name": "Vintage Loss @ 12 MOB",
+      "expression": "CALCULATE (\n    AVERAGE ( fact_vintage[CumulativeNetLossRate] ),\n    fact_vintage[MonthsOnBook] = 12\n)",
+      "formatString": "0.00%",
+      "description": "Cumulative net loss at 12 months on book."
+    },
+    {
+      "name": "Vintage Loss @ 24 MOB",
+      "expression": "CALCULATE (\n    AVERAGE ( fact_vintage[CumulativeNetLossRate] ),\n    fact_vintage[MonthsOnBook] = 24\n)",
+      "formatString": "0.00%",
+      "description": "Cumulative net loss at 24 months on book."
+    },
+    {
+      "name": "Loans Forward Rolled",
+      "expression": "CALCULATE (\n    COUNTROWS ( fact_dpd_snapshot ),\n    fact_dpd_snapshot[RollFlag] = \"Forward Roll\"\n)",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Loans Backward Rolled",
+      "expression": "CALCULATE (\n    COUNTROWS ( fact_dpd_snapshot ),\n    fact_dpd_snapshot[RollFlag] = \"Backward Roll\"\n)",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Loans Static",
+      "expression": "CALCULATE (\n    COUNTROWS ( fact_dpd_snapshot ),\n    fact_dpd_snapshot[RollFlag] = \"Same\"\n)",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Forward Roll Rate %",
+      "expression": "VAR _denom =\n    CALCULATE (\n        COUNTROWS ( fact_dpd_snapshot ),\n        fact_dpd_snapshot[DPD_Bucket_Prior] <> \"Current\"\n    )\nRETURN DIVIDE ( [Loans Forward Rolled], _denom )",
+      "formatString": "0.00%",
+      "description": "Forward rolls \u00f7 delinquent population at prior snapshot."
+    },
+    {
+      "name": "Cure Rate %",
+      "expression": "DIVIDE (\n    [Loans Backward Rolled],\n    CALCULATE (\n        COUNTROWS ( fact_dpd_snapshot ),\n        fact_dpd_snapshot[DPD_Bucket_Prior] <> \"Current\"\n    )\n)",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Roll 30 to 60 %",
+      "expression": "VAR _from =\n    CALCULATE (\n        COUNTROWS ( fact_dpd_snapshot ),\n        fact_dpd_snapshot[DPD_Bucket_Prior] = \"1-29 DPD\"\n    )\nVAR _to =\n    CALCULATE (\n        COUNTROWS ( fact_dpd_snapshot ),\n        fact_dpd_snapshot[DPD_Bucket_Prior] = \"1-29 DPD\",\n        fact_dpd_snapshot[DPD_Bucket] = \"30-59 DPD\"\n    )\nRETURN DIVIDE ( _to, _from )",
+      "formatString": "0.00%",
+      "description": "Transition probability 1-29 DPD \u2192 30-59 DPD."
+    },
+    {
+      "name": "Roll 60 to 90 %",
+      "expression": "VAR _from =\n    CALCULATE (\n        COUNTROWS ( fact_dpd_snapshot ),\n        fact_dpd_snapshot[DPD_Bucket_Prior] = \"30-59 DPD\"\n    )\nVAR _to =\n    CALCULATE (\n        COUNTROWS ( fact_dpd_snapshot ),\n        fact_dpd_snapshot[DPD_Bucket_Prior] = \"30-59 DPD\",\n        fact_dpd_snapshot[DPD_Bucket] = \"60-89 DPD\"\n    )\nRETURN DIVIDE ( _to, _from )",
+      "formatString": "0.00%",
+      "description": "Transition probability 30-59 DPD \u2192 60-89 DPD."
+    },
+    {
+      "name": "Net Loss MTD",
+      "expression": "CALCULATE ( SUM ( fact_loss_monthly[NetLoss_ThisMonth] ), DATESMTD ( dim_calendar[Date] ) )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Net Loss YTD",
+      "expression": "CALCULATE ( SUM ( fact_loss_monthly[NetLoss_ThisMonth] ), DATESYTD ( dim_calendar[Date], \"31/03\" ) )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "Year-to-date net loss, Indian fiscal year (1 Apr \u2013 31 Mar)."
+    },
+    {
+      "name": "Net Loss QTD",
+      "expression": "CALCULATE ( SUM ( fact_loss_monthly[NetLoss_ThisMonth] ), DATESQTD ( dim_calendar[Date] ) )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Pool Balance Prior Month",
+      "expression": "CALCULATE ( [Current Pool Balance], DATEADD ( dim_calendar[Date], -1, MONTH ) )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Pool Balance MoM Change %",
+      "expression": "DIVIDE ( [Current Pool Balance] - [Pool Balance Prior Month], [Pool Balance Prior Month] )",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Cumulative Net Loss",
+      "expression": "CALCULATE (\n    SUM ( fact_loss_monthly[NetLoss_ThisMonth] ),\n    FILTER (\n        ALL ( fact_loss_monthly[ReportingDate] ),\n        fact_loss_monthly[ReportingDate] <= MAX ( fact_loss_monthly[ReportingDate] )\n    )\n)",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Rolling 12M Default Rate %",
+      "expression": "VAR _maxDate = MAX ( fact_loss_monthly[ReportingDate] )\nVAR _minDate = EDATE ( _maxDate, -11 )\nRETURN\n    CALCULATE (\n        AVERAGE ( fact_loss_monthly[MonthlyDefaultRate] ),\n        FILTER (\n            ALL ( fact_loss_monthly ),\n            fact_loss_monthly[ReportingDate] >= _minDate &&\n            fact_loss_monthly[ReportingDate] <= _maxDate\n        )\n    )",
+      "formatString": "0.000%"
+    },
+    {
+      "name": "State Rank by ECL",
+      "expression": "RANKX (\n    ALL ( dim_geography[State] ),\n    [Total ECL],\n    ,\n    DESC,\n    Dense\n)",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Top 5 Risky States ECL",
+      "expression": "VAR _rank = [State Rank by ECL]\nRETURN IF ( _rank <= 5, [Total ECL], BLANK () )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Servicer Rank by Balance",
+      "expression": "RANKX (\n    ALL ( dim_servicer[ServicerName] ),\n    [Current Pool Balance],\n    ,\n    DESC,\n    Dense\n)",
+      "formatString": "#,##0"
+    },
+    {
+      "name": "Top 10 Borrower Share %",
+      "expression": "VAR _top10 =\n    TOPN ( 10, VALUES ( fact_loan[BorrowerID] ), [Current Pool Balance], DESC )\nVAR _top10_bal =\n    CALCULATE ( [Current Pool Balance], _top10 )\nRETURN DIVIDE ( _top10_bal, CALCULATE ( [Current Pool Balance], ALL ( fact_loan ) ) )",
+      "formatString": "0.00%",
+      "description": "Concentration ratio \u2014 top 10 borrower balance share."
+    },
+    {
+      "name": "Annualised Gross Interest Revenue",
+      "expression": "SUMX ( fact_loan, fact_loan[CurrentBalance] * fact_loan[InterestRate] / 100 )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Expected Loss (Annual)",
+      "expression": "[Total ECL]",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)",
+      "description": "One-year EL approximation for RAROC denominator."
+    },
+    {
+      "name": "Risk-Adjusted Return on Assets %",
+      "expression": "DIVIDE (\n    [Annualised Gross Interest Revenue] - [Expected Loss (Annual)],\n    [Current Pool Balance]\n)",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Tranche Coupon Revenue",
+      "expression": "SUMX ( fact_tranche_cashflow, fact_tranche_cashflow[InterestPaid] )",
+      "formatString": "\"\u20b9\"#,0;(\"\u20b9\"#,0)"
+    },
+    {
+      "name": "Tranche Yield Realised %",
+      "expression": "DIVIDE (\n    [Cumulative Tranche Interest Paid],\n    AVERAGE ( fact_tranche_cashflow[BOP_Balance] )\n) * 12",
+      "formatString": "0.00%"
+    },
+    {
+      "name": "Heat 30+ DPD Colour",
+      "expression": "SWITCH (\n    TRUE (),\n    [30+ DPD %] >= 0.10, \"#C62828\",\n    [30+ DPD %] >= 0.06, \"#EF6C00\",\n    [30+ DPD %] >= 0.03, \"#F9A825\",\n    \"#2E7D32\"\n)",
+      "description": "Conditional-format colour for the 30+ DPD KPI."
+    },
+    {
+      "name": "Heat Stage Mix Colour",
+      "expression": "VAR _stg3 = DIVIDE ( [Stage 3 Balance], [Current Pool Balance] )\nRETURN\n    SWITCH (\n        TRUE (),\n        _stg3 >= 0.10, \"#C62828\",\n        _stg3 >= 0.05, \"#EF6C00\",\n        _stg3 >= 0.02, \"#F9A825\",\n        \"#2E7D32\"\n    )",
+      "description": "Conditional-format colour driven by Stage-3 balance share."
+    },
+    {
+      "name": "KPI Headline Risk Status",
+      "expression": "SWITCH (\n    TRUE (),\n    [Stressed ECL] / [Total EAD] >= 0.10, \"\ud83d\udd34 CRITICAL \u2014 Tail risk exposed\",\n    [Stressed ECL] / [Total EAD] >= 0.05, \"\ud83d\udfe0 ELEVATED \u2014 Active monitoring\",\n    [Stressed ECL] / [Total EAD] >= 0.02, \"\ud83d\udfe1 WATCH \u2014 Within tolerance\",\n    \"\ud83d\udfe2 HEALTHY \u2014 Within risk appetite\"\n)",
+      "description": "Traffic-light commentary card driven by stressed ECL coverage."
+    }
+  ]
+}

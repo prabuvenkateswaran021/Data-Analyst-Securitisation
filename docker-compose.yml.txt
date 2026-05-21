@@ -1,0 +1,62 @@
+# =============================================================================
+# MatRisk AI — docker-compose
+#
+# `docker-compose up --build` brings up two services:
+#   1. api      — FastAPI service serving KPIs, stress results and the dashboard
+#   2. mlflow   — Lightweight MLflow tracking server (SQLite backend)
+#
+# Open http://localhost:8000/dashboard  for the investor dashboard
+# Open http://localhost:5000           for MLflow runs
+# =============================================================================
+version: "3.9"
+
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: matrisk-ai:1.0.0
+    container_name: matrisk-api
+    restart: unless-stopped
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      LOG_LEVEL: INFO
+      TZ: Asia/Kolkata
+    ports:
+      - "8000:8000"
+    depends_on:
+      mlflow:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - matrisk
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.10.0
+    container_name: matrisk-mlflow
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    command: >
+      mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri sqlite:///mlflow/mlflow.db
+        --default-artifact-root /mlflow/artifacts
+    networks:
+      - matrisk
+
+volumes:
+  mlflow-data:
+
+networks:
+  matrisk:
+    driver: bridge

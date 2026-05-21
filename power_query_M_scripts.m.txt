@@ -1,0 +1,404 @@
+/*
+================================================================================
+  POWER QUERY (M) SCRIPTS — Zenith Securitisation Risk Analytics
+  Each block below is a separate query in Power BI Desktop.
+  Source path should be parameterised via a "DataPath" parameter
+  pointing to the folder containing the 18 CSV files.
+================================================================================
+*/
+
+// ============================================================================
+// PARAMETER : DataPath
+// ============================================================================
+"C:\PowerBI\ZenithABS\01_data\"
+meta [IsParameterQuery = true, Type = "Text", IsParameterQueryRequired = true]
+
+
+// ============================================================================
+// Query: dim_calendar
+// ============================================================================
+let
+    Source = Csv.Document(
+        File.Contents(DataPath & "dim_calendar.csv"),
+        [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    TypeChanged = Table.TransformColumnTypes(Promoted, {
+        {"Date", type date},
+        {"DateKey", Int64.Type},
+        {"Year", Int64.Type},
+        {"Quarter", Int64.Type},
+        {"Month", Int64.Type},
+        {"Day", Int64.Type},
+        {"DayOfWeek", Int64.Type},
+        {"IsWeekend", type logical},
+        {"IsMonthEnd", type logical},
+        {"IsQuarterEnd", type logical},
+        {"IsYearEnd", type logical}
+    })
+in
+    TypeChanged
+
+
+// ============================================================================
+// Query: dim_pool
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_pool.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"OriginalPoolBalance_INR", type number},
+        {"CurrentPoolBalance_INR", type number},
+        {"WAC_Pct", type number},
+        {"WAM_Months", type number},
+        {"WALA_Months", type number},
+        {"LoanCount", Int64.Type},
+        {"IssueDate", type date},
+        {"CutoffDate", type date},
+        {"LegalMaturity", type date}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: dim_borrower
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_borrower.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"BorrowerID", type text},
+        {"BorrowerAge", Int64.Type},
+        {"AnnualIncome_INR", type number},
+        {"DTI_Ratio", type number},
+        {"CIBIL_Score_Origination", Int64.Type},
+        {"CIBIL_Score_Current", Int64.Type},
+        {"CIBIL_Drift", Int64.Type}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: dim_vehicle
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_vehicle.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"VehicleKey", Int64.Type},
+        {"VehicleYear", Int64.Type},
+        {"IsNewVehicle", type logical}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: dim_geography
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_geography.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {{"GeoKey", Int64.Type}})
+in
+    Typed
+
+
+// ============================================================================
+// Query: dim_servicer
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_servicer.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true])
+in
+    Promoted
+
+
+// ============================================================================
+// Query: dim_tranche
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_tranche.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"TrancheRank", Int64.Type},
+        {"Subordination_Pct", type number},
+        {"OriginalBalance_INR", type number},
+        {"CouponRate_Pct", type number},
+        {"ExpectedAvgLife_Years", type number},
+        {"FirstLossPosition", type logical}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: dim_investor
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_investor.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"Allocation_Pct", type number},
+        {"InvestedAmount_INR", type number}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: dim_scenario
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_scenario.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"PD_Multiplier", type number},
+        {"LGD_Multiplier", type number},
+        {"Recovery_Haircut_Pct", type number},
+        {"UnemploymentShock_Pct", type number},
+        {"InterestRateShock_bps", Int64.Type},
+        {"VehicleValueShock_Pct", type number},
+        {"GDP_Shock_Pct", type number},
+        {"Inflation_Shock_Pct", type number}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: dim_economic_indicator
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "dim_economic_indicator.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true])
+in
+    Promoted
+
+
+// ============================================================================
+// Query: fact_loan
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "fact_loan.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"LoanID", type text},
+        {"PoolID", type text},
+        {"BorrowerID", type text},
+        {"ServicerID", type text},
+        {"VehicleKey", Int64.Type},
+        {"GeoKey", Int64.Type},
+        {"OriginationDate", type date},
+        {"CutoffDate", type date},
+        {"MaturityDate", type date},
+        {"LastPaymentDate", type date},
+        {"OriginationDateKey", Int64.Type},
+        {"CutoffDateKey", Int64.Type},
+        {"MaturityDateKey", Int64.Type},
+        {"OriginalLoanAmount", type number},
+        {"CurrentBalance", type number},
+        {"MonthlyEMI", type number},
+        {"InterestRate", type number},
+        {"OriginalTerm", Int64.Type},
+        {"RemainingTerm", Int64.Type},
+        {"MonthsOnBook", Int64.Type},
+        {"DelinquencyDays", Int64.Type},
+        {"IFRS9_Stage", Int64.Type},
+        {"PD_Estimate", type number},
+        {"LGD_Estimate", type number},
+        {"EAD", type number},
+        {"ECL_Provision", type number},
+        {"LTV_AtOrigination", type number},
+        {"LTV_Current", type number},
+        {"CIBIL_Score_Origination", Int64.Type},
+        {"CIBIL_Score_Current", Int64.Type},
+        {"DTI_Ratio", type number},
+        {"AnnualIncome_INR", type number},
+        {"OriginalVehicleValue", type number},
+        {"CurrentVehicleValue", type number},
+        {"LossAmount", type number},
+        {"RecoveryAmount", type number},
+        {"NetLoss", type number},
+        {"PrepaymentAmount", type number},
+        {"IsDefaulted", type logical},
+        {"IsModified", type logical},
+        {"HasInsurance", type logical},
+        {"IsNewVehicle", type logical}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: fact_dpd_snapshot
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "fact_dpd_snapshot.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"SnapshotDate", type date},
+        {"SnapshotDateKey", Int64.Type},
+        {"LoanID", type text},
+        {"PoolID", type text},
+        {"DPD_Days", Int64.Type},
+        {"CurrentBalance", type number},
+        {"AmountOverdue", type number},
+        {"EMIsOverdue", Int64.Type},
+        {"LastPaymentDate", type date},
+        {"LastPaymentAmount", type number},
+        {"CureFlag", type logical},
+        {"RepossessionFlag", type logical},
+        {"WriteOffFlag", type logical},
+        {"ConsecutiveMonthsDelinquent", Int64.Type}
+    }),
+    // Sort bucket order
+    AddedSort = Table.AddColumn(Typed, "BucketSort", each
+        if [DPD_Bucket] = "Current" then 0
+        else if [DPD_Bucket] = "1-29 DPD" then 1
+        else if [DPD_Bucket] = "30-59 DPD" then 2
+        else if [DPD_Bucket] = "60-89 DPD" then 3
+        else if [DPD_Bucket] = "90-119 DPD" then 4
+        else if [DPD_Bucket] = "120+ DPD" then 5
+        else if [DPD_Bucket] = "Default" then 6
+        else if [DPD_Bucket] = "Repossessed" then 7
+        else 99, Int64.Type)
+in
+    AddedSort
+
+
+// ============================================================================
+// Query: fact_loss_monthly
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "fact_loss_monthly.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"ReportingDate", type date},
+        {"ReportingDateKey", Int64.Type},
+        {"BOP_LoanCount", Int64.Type},
+        {"BOP_Balance", type number},
+        {"NewDefaults_Count", Int64.Type},
+        {"NewDefaults_Balance", type number},
+        {"GrossLoss_ThisMonth", type number},
+        {"Recoveries_ThisMonth", type number},
+        {"NetLoss_ThisMonth", type number},
+        {"Prepayments_ThisMonth", type number},
+        {"ScheduledAmort", type number},
+        {"EOP_Balance", type number},
+        {"EOP_LoanCount", Int64.Type},
+        {"CollectionsTotal", type number},
+        {"BillingAmount", type number},
+        {"CollectionEfficiency", type number},
+        {"MonthlyDefaultRate", type number},
+        {"MonthlyNetLossRate", type number},
+        {"SMM", type number},
+        {"CPR_Annualised", type number},
+        {"ExcessSpread_Monthly", type number}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: fact_vintage
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "fact_vintage.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"VintageID", type text},
+        {"VintageStartDate", type date},
+        {"VintageStartDateKey", Int64.Type},
+        {"OriginalLoanCount", Int64.Type},
+        {"OriginalPoolBalance", type number},
+        {"MonthsOnBook", Int64.Type},
+        {"CumulativeDefaults_Count", Int64.Type},
+        {"CumulativeDefaults_Balance", type number},
+        {"CumulativeGrossLoss", type number},
+        {"CumulativeRecoveries", type number},
+        {"CumulativeNetLoss", type number},
+        {"CumulativeNetLossRate", type number},
+        {"CumulativePrepayments", type number},
+        {"RemainingPoolBalance", type number},
+        {"PoolFactor", type number},
+        {"CurrentDelinq30Plus", type number},
+        {"MarginalLossRate", type number}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: fact_tranche_cashflow
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "fact_tranche_cashflow.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"ReportingDate", type date},
+        {"TrancheID", type text},
+        {"BOP_Balance", type number},
+        {"InterestPaid", type number},
+        {"PrincipalPaid", type number},
+        {"LossAllocated", type number},
+        {"EOP_Balance", type number}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: fact_waterfall_distribution
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "fact_waterfall_distribution.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"ReportingDate", type date},
+        {"Step", type text},
+        {"Amount", type number}
+    }),
+    // Extract step priority order
+    AddedStepNo = Table.AddColumn(Typed, "StepNo", each
+        try Number.FromText(Text.Start([Step], 1)) otherwise 99, Int64.Type)
+in
+    AddedStepNo
+
+
+// ============================================================================
+// Query: fact_stress_results
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "fact_stress_results.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"ScenarioID", type text},
+        {"Stage", type text},
+        {"LoanCount", Int64.Type},
+        {"Exposure_INR", type number},
+        {"ECL_Baseline_INR", type number},
+        {"ECL_Stressed_INR", type number},
+        {"ECL_Increase_INR", type number},
+        {"AvgPD_Stressed", type number},
+        {"AvgLGD_Stressed", type number},
+        {"AvgLTV_Stressed", type number}
+    })
+in
+    Typed
+
+
+// ============================================================================
+// Query: fact_economic_history
+// ============================================================================
+let
+    Source = Csv.Document(File.Contents(DataPath & "fact_economic_history.csv"), [Delimiter=",", Encoding=65001]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {
+        {"ReportingDate", type date},
+        {"IndicatorCode", type text},
+        {"Value", type number}
+    })
+in
+    Typed

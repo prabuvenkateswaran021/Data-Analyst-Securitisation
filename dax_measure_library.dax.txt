@@ -1,0 +1,720 @@
+
+[Loan Count] =
+    DISTINCTCOUNT ( fact_loan[LoanID] )
+
+[Borrower Count] =
+    DISTINCTCOUNT ( fact_loan[BorrowerID] )
+
+[Original Pool Balance] =
+    SUM ( fact_loan[OriginalLoanAmount] )
+
+[Current Pool Balance] =
+    SUM ( fact_loan[CurrentBalance] )
+
+[Total EAD] =
+    SUM ( fact_loan[EAD] )
+
+// Current outstanding ÷ original — pool amortisation indicator.
+[Pool Factor] =
+    DIVIDE ( [Current Pool Balance], [Original Pool Balance] )
+
+[Avg Loan Size] =
+    DIVIDE ( [Current Pool Balance], [Loan Count] )
+
+[Avg Original Term Months] =
+    AVERAGE ( fact_loan[OriginalTerm] )
+
+[Avg Months on Book] =
+    AVERAGE ( fact_loan[MonthsOnBook] )
+
+// Sum of current balance across loans at the latest snapshot.
+[Pool Balance at Snapshot] =
+    CALCULATE (
+        SUM ( fact_dpd_snapshot[CurrentBalance] ),
+        fact_dpd_snapshot[SnapshotDate] = [Latest Snapshot Date]
+    )
+
+// =====================================================================
+// 03. Weighted Averages
+// =====================================================================
+
+// Weighted average coupon (balance-weighted).
+[WAC %] =
+    DIVIDE (
+        SUMX ( fact_loan, fact_loan[InterestRate] * fact_loan[CurrentBalance] ),
+        SUMX ( fact_loan, fact_loan[CurrentBalance] )
+    )
+
+// Weighted average remaining maturity (months).
+[WAM Months] =
+    DIVIDE (
+        SUMX ( fact_loan, fact_loan[RemainingTerm] * fact_loan[CurrentBalance] ),
+        SUMX ( fact_loan, fact_loan[CurrentBalance] )
+    )
+
+// Weighted average loan age (months on book).
+[WALA Months] =
+    DIVIDE (
+        SUMX ( fact_loan, fact_loan[MonthsOnBook] * fact_loan[CurrentBalance] ),
+        SUMX ( fact_loan, fact_loan[CurrentBalance] )
+    )
+
+// Balance-weighted current LTV ratio.
+[Weighted Avg LTV %] =
+    DIVIDE (
+        SUMX ( fact_loan, fact_loan[LTV_Current] * fact_loan[CurrentBalance] ),
+        SUMX ( fact_loan, fact_loan[CurrentBalance] )
+    )
+
+// Balance-weighted debt-to-income.
+[Weighted Avg DTI %] =
+    DIVIDE (
+        SUMX ( fact_loan, fact_loan[DTI_Ratio] * fact_loan[CurrentBalance] ),
+        SUMX ( fact_loan, fact_loan[CurrentBalance] )
+    )
+
+// Balance-weighted CIBIL score.
+[Weighted Avg CIBIL] =
+    DIVIDE (
+        SUMX ( fact_loan, fact_loan[CIBIL_Score_Current] * fact_loan[CurrentBalance] ),
+        SUMX ( fact_loan, fact_loan[CurrentBalance] )
+    )
+
+// Gross asset yield (alias for WAC); net yield deducts servicer + trustee fees.
+[Portfolio Yield %] =
+    [WAC %]
+
+// =====================================================================
+// 04. Delinquency & DPD Buckets
+// =====================================================================
+
+[Loans 30+ DPD Count] =
+    CALCULATE ( [Loan Count], fact_loan[DelinquencyDays] >= 30 )
+
+[Balance 30+ DPD] =
+    CALCULATE ( [Current Pool Balance], fact_loan[DelinquencyDays] >= 30 )
+
+[30+ DPD %] =
+    DIVIDE ( [Balance 30+ DPD], [Current Pool Balance] )
+
+[Loans 60+ DPD Count] =
+    CALCULATE ( [Loan Count], fact_loan[DelinquencyDays] >= 60 )
+
+[Balance 60+ DPD] =
+    CALCULATE ( [Current Pool Balance], fact_loan[DelinquencyDays] >= 60 )
+
+[60+ DPD %] =
+    DIVIDE ( [Balance 60+ DPD], [Current Pool Balance] )
+
+[Loans 90+ DPD Count] =
+    CALCULATE ( [Loan Count], fact_loan[DelinquencyDays] >= 90 )
+
+[Balance 90+ DPD] =
+    CALCULATE ( [Current Pool Balance], fact_loan[DelinquencyDays] >= 90 )
+
+[90+ DPD %] =
+    DIVIDE ( [Balance 90+ DPD], [Current Pool Balance] )
+
+// Share of loans that are 30+ days past due (loan count basis).
+[Delinquency Rate %] =
+    DIVIDE ( [Loans 30+ DPD Count], [Loan Count] )
+
+// Non-performing balance per RBI classification at latest snapshot.
+[NPA Balance] =
+    CALCULATE (
+        SUM ( fact_dpd_snapshot[CurrentBalance] ),
+        fact_dpd_snapshot[SnapshotDate] = [Latest Snapshot Date],
+        fact_dpd_snapshot[RBI_SMA_Class] = "NPA"
+    )
+
+[NPA %] =
+    DIVIDE ( [NPA Balance], [Pool Balance at Snapshot] )
+
+// Gross NPA ratio — alias of NPA % retained for regulatory cross-referencing.
+[GNPA Ratio %] =
+    [NPA %]
+
+// NPA balance net of Stage-3 ECL provisions (floored at zero).
+[Net NPA Balance] =
+    VAR _gnpa = [NPA Balance]
+    VAR _provns =
+        CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 3 )
+    RETURN MAX ( _gnpa - _provns, 0 )
+
+[Net NPA %] =
+    DIVIDE ( [Net NPA Balance], [Pool Balance at Snapshot] )
+
+// =====================================================================
+// 05. Default & Loss
+// =====================================================================
+
+[Defaulted Loan Count] =
+    CALCULATE ( [Loan Count], fact_loan[IsDefaulted] = TRUE() )
+
+[Default Rate %] =
+    DIVIDE ( [Defaulted Loan Count], [Loan Count] )
+
+[Total Gross Loss] =
+    SUM ( fact_loan[LossAmount] )
+
+[Total Net Loss] =
+    SUM ( fact_loan[NetLoss] )
+
+[Gross Loss Rate %] =
+    DIVIDE ( [Total Gross Loss], [Original Pool Balance] )
+
+[Net Loss Rate %] =
+    DIVIDE ( [Total Net Loss], [Original Pool Balance] )
+
+[Monthly Default Rate %] =
+    AVERAGE ( fact_loss_monthly[MonthlyDefaultRate] )
+
+// Annualised constant default rate: 1 − (1 − MDR)^12.
+[CDR Annualised %] =
+    VAR _mdr = AVERAGE ( fact_loss_monthly[MonthlyDefaultRate] )
+    RETURN 1 - POWER ( 1 - _mdr, 12 )
+
+// =====================================================================
+// 06. Recovery
+// =====================================================================
+
+[Total Recovery] =
+    SUM ( fact_loan[RecoveryAmount] )
+
+[Recovery Rate %] =
+    DIVIDE ( [Total Recovery], [Total Gross Loss] )
+
+[Monthly Recovery] =
+    SUM ( fact_loss_monthly[Recoveries_ThisMonth] )
+
+// =====================================================================
+// 07. Prepayment (SMM, CPR)
+// =====================================================================
+
+[Total Prepayment] =
+    SUM ( fact_loan[PrepaymentAmount] )
+
+[Prepayment Rate %] =
+    DIVIDE ( [Total Prepayment], [Original Pool Balance] )
+
+// Single Monthly Mortality — share of EOP balance prepaid per month.
+[SMM Avg %] =
+    AVERAGE ( fact_loss_monthly[SMM] )
+
+[CPR Annualised %] =
+    AVERAGE ( fact_loss_monthly[CPR_Annualised] )
+
+// CPR derived from SMM as a cross-check on the reported CPR.
+[CPR Calc %] =
+    VAR _smm = AVERAGE ( fact_loss_monthly[SMM] )
+    RETURN 1 - POWER ( 1 - _smm, 12 )
+
+// =====================================================================
+// 08. IFRS 9 Staging & ECL
+// =====================================================================
+
+[Stage 1 Loan Count] =
+    CALCULATE ( [Loan Count], fact_loan[IFRS9_Stage] = 1 )
+
+[Stage 1 Balance] =
+    CALCULATE ( [Current Pool Balance], fact_loan[IFRS9_Stage] = 1 )
+
+[Stage 1 EAD] =
+    CALCULATE ( [Total EAD], fact_loan[IFRS9_Stage] = 1 )
+
+[Stage 1 ECL] =
+    CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 1 )
+
+[Stage 2 Loan Count] =
+    CALCULATE ( [Loan Count], fact_loan[IFRS9_Stage] = 2 )
+
+[Stage 2 Balance] =
+    CALCULATE ( [Current Pool Balance], fact_loan[IFRS9_Stage] = 2 )
+
+[Stage 2 EAD] =
+    CALCULATE ( [Total EAD], fact_loan[IFRS9_Stage] = 2 )
+
+[Stage 2 ECL] =
+    CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 2 )
+
+[Stage 3 Loan Count] =
+    CALCULATE ( [Loan Count], fact_loan[IFRS9_Stage] = 3 )
+
+[Stage 3 Balance] =
+    CALCULATE ( [Current Pool Balance], fact_loan[IFRS9_Stage] = 3 )
+
+[Stage 3 EAD] =
+    CALCULATE ( [Total EAD], fact_loan[IFRS9_Stage] = 3 )
+
+[Stage 3 ECL] =
+    CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 3 )
+
+[Total ECL] =
+    SUM ( fact_loan[ECL_Provision] )
+
+// Portfolio-level ECL ÷ EAD coverage.
+[ECL Coverage %] =
+    DIVIDE ( [Total ECL], [Total EAD] )
+
+// Stage-3 ECL as a share of Stage-3 EAD — impairment intensity.
+[Stage 3 Coverage %] =
+    DIVIDE ( [Stage 3 ECL], [Stage 3 EAD] )
+
+// EAD-weighted probability of default.
+[Weighted Avg PD %] =
+    DIVIDE (
+        SUMX ( fact_loan, fact_loan[PD_Estimate] * fact_loan[EAD] ),
+        SUMX ( fact_loan, fact_loan[EAD] )
+    )
+
+// EAD-weighted loss given default.
+[Weighted Avg LGD %] =
+    DIVIDE (
+        SUMX ( fact_loan, fact_loan[LGD_Estimate] * fact_loan[EAD] ),
+        SUMX ( fact_loan, fact_loan[EAD] )
+    )
+
+// Validation: live PD × LGD × EAD vs. stored ECL_Provision.
+[ECL Calculated] =
+    SUMX (
+        fact_loan,
+        fact_loan[PD_Estimate] * fact_loan[LGD_Estimate] * fact_loan[EAD]
+    )
+
+// Share of loans not in Stage 1.
+[Stage Migration Net %] =
+    VAR _to_worse = CALCULATE ( [Loan Count], fact_loan[IFRS9_Stage] > 1 )
+    RETURN DIVIDE ( _to_worse, [Loan Count] )
+
+// 12-month ECL bucket per IFRS 9 §5.5.5 (Stage 1).
+[12-Month ECL] =
+    CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] = 1 )
+
+// Lifetime ECL bucket per IFRS 9 §5.5.3 (Stages 2 & 3).
+[Lifetime ECL] =
+    CALCULATE ( SUM ( fact_loan[ECL_Provision] ), fact_loan[IFRS9_Stage] IN { 2, 3 } )
+
+// =====================================================================
+// 09. Stress Testing
+// =====================================================================
+
+[Selected Scenario] =
+    SELECTEDVALUE ( dim_scenario[ScenarioName], "Baseline" )
+
+[Scenario PD Multiplier] =
+    SELECTEDVALUE ( dim_scenario[PD_Multiplier], 1.0 )
+
+[Scenario LGD Multiplier] =
+    SELECTEDVALUE ( dim_scenario[LGD_Multiplier], 1.0 )
+
+[Scenario Recovery Haircut %] =
+    SELECTEDVALUE ( dim_scenario[Recovery_Haircut_Pct], 0 )
+
+// Live-stressed ECL with PD & LGD caps at 100%.
+[Stressed ECL] =
+    VAR _pdm = [Scenario PD Multiplier]
+    VAR _lgdm = [Scenario LGD Multiplier]
+    VAR _haircut = [Scenario Recovery Haircut %]
+    RETURN
+        SUMX (
+            fact_loan,
+            MIN ( fact_loan[PD_Estimate] * _pdm, 1 ) *
+            MIN ( fact_loan[LGD_Estimate] * _lgdm * ( 1 + _haircut ), 1 ) *
+            fact_loan[EAD]
+        )
+
+[ECL Increase from Stress] =
+    [Stressed ECL] - [Total ECL]
+
+[ECL Increase %] =
+    DIVIDE ( [ECL Increase from Stress], [Total ECL] )
+
+[Stressed ECL by Stage] =
+    SUM ( fact_stress_results[ECL_Stressed_INR] )
+
+// Stressed loss absorbed by tranche TR-A (Senior).
+[Stressed Loss to Senior Tranche] =
+    CALCULATE (
+        SUM ( fact_stress_results[ECL_Stressed_INR] ),
+        fact_stress_results[Stage] = "TR-A"
+    )
+
+// Stressed loss absorbed by tranche TR-B (Mezz).
+[Stressed Loss to Mezz Tranche] =
+    CALCULATE (
+        SUM ( fact_stress_results[ECL_Stressed_INR] ),
+        fact_stress_results[Stage] = "TR-B"
+    )
+
+// Stressed loss absorbed by tranche TR-C (Equity).
+[Stressed Loss to Equity Tranche] =
+    CALCULATE (
+        SUM ( fact_stress_results[ECL_Stressed_INR] ),
+        fact_stress_results[Stage] = "TR-C"
+    )
+
+// =====================================================================
+// 10. Tranche & Waterfall
+// =====================================================================
+
+[Tranche Original Balance] =
+    SUM ( dim_tranche[OriginalBalance_INR] )
+
+[Tranche EOP Balance] =
+    CALCULATE (
+        SUM ( fact_tranche_cashflow[EOP_Balance] ),
+        fact_tranche_cashflow[ReportingDate] = [Latest Reporting Date]
+    )
+
+[Tranche Paydown %] =
+    DIVIDE ( [Tranche Original Balance] - [Tranche EOP Balance], [Tranche Original Balance] )
+
+[Cumulative Tranche Interest Paid] =
+    SUM ( fact_tranche_cashflow[InterestPaid] )
+
+[Cumulative Tranche Principal Paid] =
+    SUM ( fact_tranche_cashflow[PrincipalPaid] )
+
+[Cumulative Tranche Loss] =
+    SUM ( fact_tranche_cashflow[LossAllocated] )
+
+// Subordination remaining for the senior tranche.
+[Credit Enhancement %] =
+    VAR _senior_bal =
+        CALCULATE ( [Tranche EOP Balance], dim_tranche[TrancheID] = "TR-A" )
+    VAR _total_bal =
+        CALCULATE ( [Tranche EOP Balance], ALL ( dim_tranche ) )
+    RETURN DIVIDE ( _total_bal - _senior_bal, _total_bal )
+
+[Waterfall Amount] =
+    SUM ( fact_waterfall_distribution[Amount] )
+
+[Total Collections] =
+    SUM ( fact_loss_monthly[CollectionsTotal] )
+
+[Excess Spread] =
+    SUM ( fact_loss_monthly[ExcessSpread_Monthly] )
+
+[Cumulative Excess Spread] =
+    CALCULATE (
+        [Excess Spread],
+        FILTER (
+            ALL ( fact_loss_monthly ),
+            fact_loss_monthly[ReportingDate] <= MAX ( fact_loss_monthly[ReportingDate] )
+        )
+    )
+
+// =====================================================================
+// 11. Investor Reporting
+// =====================================================================
+
+[Total Invested by Investors] =
+    SUM ( dim_investor[InvestedAmount_INR] )
+
+[Investor Count] =
+    DISTINCTCOUNT ( dim_investor[InvestorID] )
+
+[Senior Investor Allocation] =
+    CALCULATE (
+        SUM ( dim_investor[InvestedAmount_INR] ),
+        dim_investor[TrancheID] = "TR-A"
+    )
+
+[Mezz Investor Allocation] =
+    CALCULATE (
+        SUM ( dim_investor[InvestedAmount_INR] ),
+        dim_investor[TrancheID] = "TR-B"
+    )
+
+[Equity Investor Allocation] =
+    CALCULATE (
+        SUM ( dim_investor[InvestedAmount_INR] ),
+        dim_investor[TrancheID] = "TR-C"
+    )
+
+[FPI Allocation] =
+    CALCULATE (
+        SUM ( dim_investor[InvestedAmount_INR] ),
+        dim_investor[InvestorType] = "Foreign Portfolio Investor"
+    )
+
+[FPI Allocation %] =
+    DIVIDE ( [FPI Allocation], [Total Invested by Investors] )
+
+// =====================================================================
+// 12. Collection Efficiency & Ops
+// =====================================================================
+
+[Collection Efficiency %] =
+    DIVIDE (
+        SUM ( fact_loss_monthly[CollectionsTotal] ),
+        SUM ( fact_loss_monthly[BillingAmount] )
+    )
+
+[Avg Collection Efficiency %] =
+    AVERAGE ( fact_loss_monthly[CollectionEfficiency] )
+
+[Avg Monthly Billing] =
+    AVERAGE ( fact_loss_monthly[BillingAmount] )
+
+[Cure Count] =
+    CALCULATE ( COUNTROWS ( fact_dpd_snapshot ), fact_dpd_snapshot[CureFlag] = TRUE() )
+
+[Repossession Count] =
+    CALCULATE ( COUNTROWS ( fact_dpd_snapshot ), fact_dpd_snapshot[RepossessionFlag] = TRUE() )
+
+[Write-Off Count] =
+    CALCULATE ( COUNTROWS ( fact_dpd_snapshot ), fact_dpd_snapshot[WriteOffFlag] = TRUE() )
+
+// =====================================================================
+// 13. Vintage / Static Pool
+// =====================================================================
+
+[Vintage Cumulative Net Loss %] =
+    AVERAGE ( fact_vintage[CumulativeNetLossRate] )
+
+[Latest Vintage Net Loss %] =
+    VAR _maxMOB =
+        CALCULATE ( MAX ( fact_vintage[MonthsOnBook] ),
+                    ALLEXCEPT ( fact_vintage, fact_vintage[VintageID] ) )
+    RETURN
+        CALCULATE (
+            AVERAGE ( fact_vintage[CumulativeNetLossRate] ),
+            fact_vintage[MonthsOnBook] = _maxMOB
+        )
+
+[Vintage Pool Factor] =
+    AVERAGE ( fact_vintage[PoolFactor] )
+
+[Vintage Marginal Loss Rate] =
+    AVERAGE ( fact_vintage[MarginalLossRate] )
+
+// Cumulative net loss at 12 months on book.
+[Vintage Loss @ 12 MOB] =
+    CALCULATE (
+        AVERAGE ( fact_vintage[CumulativeNetLossRate] ),
+        fact_vintage[MonthsOnBook] = 12
+    )
+
+// Cumulative net loss at 24 months on book.
+[Vintage Loss @ 24 MOB] =
+    CALCULATE (
+        AVERAGE ( fact_vintage[CumulativeNetLossRate] ),
+        fact_vintage[MonthsOnBook] = 24
+    )
+
+// =====================================================================
+// 14. Roll-Rate & Transition
+// =====================================================================
+
+[Loans Forward Rolled] =
+    CALCULATE (
+        COUNTROWS ( fact_dpd_snapshot ),
+        fact_dpd_snapshot[RollFlag] = "Forward Roll"
+    )
+
+[Loans Backward Rolled] =
+    CALCULATE (
+        COUNTROWS ( fact_dpd_snapshot ),
+        fact_dpd_snapshot[RollFlag] = "Backward Roll"
+    )
+
+[Loans Static] =
+    CALCULATE (
+        COUNTROWS ( fact_dpd_snapshot ),
+        fact_dpd_snapshot[RollFlag] = "Same"
+    )
+
+// Forward rolls ÷ delinquent population at prior snapshot.
+[Forward Roll Rate %] =
+    VAR _denom =
+        CALCULATE (
+            COUNTROWS ( fact_dpd_snapshot ),
+            fact_dpd_snapshot[DPD_Bucket_Prior] <> "Current"
+        )
+    RETURN DIVIDE ( [Loans Forward Rolled], _denom )
+
+[Cure Rate %] =
+    DIVIDE (
+        [Loans Backward Rolled],
+        CALCULATE (
+            COUNTROWS ( fact_dpd_snapshot ),
+            fact_dpd_snapshot[DPD_Bucket_Prior] <> "Current"
+        )
+    )
+
+// Transition probability 1-29 DPD → 30-59 DPD.
+[Roll 30 to 60 %] =
+    VAR _from =
+        CALCULATE (
+            COUNTROWS ( fact_dpd_snapshot ),
+            fact_dpd_snapshot[DPD_Bucket_Prior] = "1-29 DPD"
+        )
+    VAR _to =
+        CALCULATE (
+            COUNTROWS ( fact_dpd_snapshot ),
+            fact_dpd_snapshot[DPD_Bucket_Prior] = "1-29 DPD",
+            fact_dpd_snapshot[DPD_Bucket] = "30-59 DPD"
+        )
+    RETURN DIVIDE ( _to, _from )
+
+// Transition probability 30-59 DPD → 60-89 DPD.
+[Roll 60 to 90 %] =
+    VAR _from =
+        CALCULATE (
+            COUNTROWS ( fact_dpd_snapshot ),
+            fact_dpd_snapshot[DPD_Bucket_Prior] = "30-59 DPD"
+        )
+    VAR _to =
+        CALCULATE (
+            COUNTROWS ( fact_dpd_snapshot ),
+            fact_dpd_snapshot[DPD_Bucket_Prior] = "30-59 DPD",
+            fact_dpd_snapshot[DPD_Bucket] = "60-89 DPD"
+        )
+    RETURN DIVIDE ( _to, _from )
+
+// =====================================================================
+// 15. Time Intelligence
+// =====================================================================
+
+[Net Loss MTD] =
+    CALCULATE ( SUM ( fact_loss_monthly[NetLoss_ThisMonth] ), DATESMTD ( dim_calendar[Date] ) )
+
+// Year-to-date net loss, Indian fiscal year (1 Apr – 31 Mar).
+[Net Loss YTD] =
+    CALCULATE ( SUM ( fact_loss_monthly[NetLoss_ThisMonth] ), DATESYTD ( dim_calendar[Date], "31/03" ) )
+
+[Net Loss QTD] =
+    CALCULATE ( SUM ( fact_loss_monthly[NetLoss_ThisMonth] ), DATESQTD ( dim_calendar[Date] ) )
+
+[Pool Balance Prior Month] =
+    CALCULATE ( [Current Pool Balance], DATEADD ( dim_calendar[Date], -1, MONTH ) )
+
+[Pool Balance MoM Change %] =
+    DIVIDE ( [Current Pool Balance] - [Pool Balance Prior Month], [Pool Balance Prior Month] )
+
+[Cumulative Net Loss] =
+    CALCULATE (
+        SUM ( fact_loss_monthly[NetLoss_ThisMonth] ),
+        FILTER (
+            ALL ( fact_loss_monthly[ReportingDate] ),
+            fact_loss_monthly[ReportingDate] <= MAX ( fact_loss_monthly[ReportingDate] )
+        )
+    )
+
+[Rolling 12M Default Rate %] =
+    VAR _maxDate = MAX ( fact_loss_monthly[ReportingDate] )
+    VAR _minDate = EDATE ( _maxDate, -11 )
+    RETURN
+        CALCULATE (
+            AVERAGE ( fact_loss_monthly[MonthlyDefaultRate] ),
+            FILTER (
+                ALL ( fact_loss_monthly ),
+                fact_loss_monthly[ReportingDate] >= _minDate &&
+                fact_loss_monthly[ReportingDate] <= _maxDate
+            )
+        )
+
+// =====================================================================
+// 16. Ranking & Dynamic
+// =====================================================================
+
+[State Rank by ECL] =
+    RANKX (
+        ALL ( dim_geography[State] ),
+        [Total ECL],
+        ,
+        DESC,
+        Dense
+    )
+
+[Top 5 Risky States ECL] =
+    VAR _rank = [State Rank by ECL]
+    RETURN IF ( _rank <= 5, [Total ECL], BLANK () )
+
+[Servicer Rank by Balance] =
+    RANKX (
+        ALL ( dim_servicer[ServicerName] ),
+        [Current Pool Balance],
+        ,
+        DESC,
+        Dense
+    )
+
+// Concentration ratio — top 10 borrower balance share.
+[Top 10 Borrower Share %] =
+    VAR _top10 =
+        TOPN ( 10, VALUES ( fact_loan[BorrowerID] ), [Current Pool Balance], DESC )
+    VAR _top10_bal =
+        CALCULATE ( [Current Pool Balance], _top10 )
+    RETURN DIVIDE ( _top10_bal, CALCULATE ( [Current Pool Balance], ALL ( fact_loan ) ) )
+
+// =====================================================================
+// 17. Risk-Adjusted Returns & Yield
+// =====================================================================
+
+[Annualised Gross Interest Revenue] =
+    SUMX ( fact_loan, fact_loan[CurrentBalance] * fact_loan[InterestRate] / 100 )
+
+// One-year EL approximation for RAROC denominator.
+[Expected Loss (Annual)] =
+    [Total ECL]
+
+[Risk-Adjusted Return on Assets %] =
+    DIVIDE (
+        [Annualised Gross Interest Revenue] - [Expected Loss (Annual)],
+        [Current Pool Balance]
+    )
+
+[Tranche Coupon Revenue] =
+    SUMX ( fact_tranche_cashflow, fact_tranche_cashflow[InterestPaid] )
+
+[Tranche Yield Realised %] =
+    DIVIDE (
+        [Cumulative Tranche Interest Paid],
+        AVERAGE ( fact_tranche_cashflow[BOP_Balance] )
+    ) * 12
+
+// =====================================================================
+// Aux. Heat-Map Conditional Formatting
+// =====================================================================
+
+// Conditional-format colour for the 30+ DPD KPI.
+[Heat 30+ DPD Colour] =
+    SWITCH (
+        TRUE (),
+        [30+ DPD %] >= 0.10, "#C62828",
+        [30+ DPD %] >= 0.06, "#EF6C00",
+        [30+ DPD %] >= 0.03, "#F9A825",
+        "#2E7D32"
+    )
+
+// Conditional-format colour driven by Stage-3 balance share.
+[Heat Stage Mix Colour] =
+    VAR _stg3 = DIVIDE ( [Stage 3 Balance], [Current Pool Balance] )
+    RETURN
+        SWITCH (
+            TRUE (),
+            _stg3 >= 0.10, "#C62828",
+            _stg3 >= 0.05, "#EF6C00",
+            _stg3 >= 0.02, "#F9A825",
+            "#2E7D32"
+        )
+
+// =====================================================================
+// Aux. Dynamic KPI Headlines
+// =====================================================================
+
+// Traffic-light commentary card driven by stressed ECL coverage.
+[KPI Headline Risk Status] =
+    SWITCH (
+        TRUE (),
+        [Stressed ECL] / [Total EAD] >= 0.10, "🔴 CRITICAL — Tail risk exposed",
+        [Stressed ECL] / [Total EAD] >= 0.05, "🟠 ELEVATED — Active monitoring",
+        [Stressed ECL] / [Total EAD] >= 0.02, "🟡 WATCH — Within tolerance",
+        "🟢 HEALTHY — Within risk appetite"
+    )
+
+// ==========================================================================
+// END — 139 measures across 19 domains
+// ==========================================================================

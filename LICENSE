@@ -1,0 +1,70 @@
+PROPRIETARY LICENSE — INTERN WORK PRODUCT
+
+Copyright © 2026 Zetheta Algorithms Pvt. Ltd. All rights reserved.
+
+Project           : MatRisk AI v1.0
+Project codename  : Maturity, Asset & Tranche Risk Analytics Intelligence
+Owner             : Zetheta Algorithms Pvt. Ltd.
+Author (intern)   : [Intern Name] — Zetheta Internship Program 2026
+
+1. OWNERSHIP
+
+   All intellectual property arising from this project — including but not
+   limited to source code, datasets, derived data, analytical models, DAX
+   measure libraries, dashboard designs, technical reports, documentation,
+   experimental results, novel algorithms, mathematical formulations, and
+   any associated trade secrets — is the EXCLUSIVE property of Zetheta
+   Algorithms Pvt. Ltd. ("Zetheta"), assigned irrevocably under the terms
+   of the confidentiality and IP assignment agreement signed by the
+   contributor at project commencement.
+
+2. CONFIDENTIALITY
+
+   This work product is classified Strictly Private and Confidential. It
+   must not be circulated, published, reproduced, transmitted, mirrored,
+   forked, or otherwise disclosed to any party outside Zetheta and its
+   authorised employees, contractors, and trustees, without prior written
+   consent from a duly authorised officer of Zetheta.
+
+3. PERMITTED USE
+
+   Use of this software is limited to:
+     (a) Zetheta's internal research, evaluation, and product development
+         operations;
+     (b) demonstration to Zetheta's clients, prospective clients, and
+         regulators where Zetheta has authorised such use in writing;
+     (c) Zetheta-authorised academic publication, subject to redaction
+         of confidential materials.
+
+4. PROHIBITED USE
+
+   No party other than Zetheta may copy, modify, merge, publish,
+   distribute, sublicense, sell, or commercially exploit this software,
+   in whole or in part. The intern contributor shall delete all personal
+   copies, forks, and clones upon completion of the internship period
+   and submission of the final repository transfer.
+
+5. INVENTION RECORD
+
+   The Git commit history of this repository, together with the dated
+   technical-report entries, comparative-results tables, and the model
+   performance report, constitute a timestamped record of invention
+   sufficient for proceedings under the Indian Patents Act, 1970 (as
+   amended) and analogous instruments in other jurisdictions.
+
+6. WARRANTY DISCLAIMER
+
+   THIS SOFTWARE IS PROVIDED BY ZETHETA "AS IS" AND ANY EXPRESS OR
+   IMPLIED WARRANTIES, INCLUDING THE IMPLIED WARRANTIES OF MERCHANTABILITY
+   AND FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED. IN NO EVENT SHALL
+   ZETHETA BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE.
+
+7. GOVERNING LAW
+
+   This licence is governed by the laws of India. Any dispute arising
+   from this licence shall be subject to the exclusive jurisdiction of
+   the courts at the registered seat of Zetheta Algorithms Pvt. Ltd.
+
+— End of Licence —
